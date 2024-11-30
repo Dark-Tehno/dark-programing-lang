@@ -22,6 +22,13 @@ color = {
     'if': '#00FF00',
     '<-#->': '#808080',
     '=>': '#FFFF00',
+    'block': '#00FF00',
+    'run-block': '#00BFFF',
+    'import': '#FF0000',
+    'mods': '#FF00FF',
+    'init': '#FF00FF',
+    '[{': '#FF00FF',
+    '}]': '#FF00FF',
 }
 
 class DarkIDE:
@@ -181,7 +188,6 @@ class DarkIDE:
         threading.Thread(target=self.run_in_terminal, args=(self.current_file,)).start()
 
     def run_in_terminal(self, file_path):
-
         os.system(f"start cmd /c powershell -Command .\\{self.current_version} {file_path}")
 
     def highlight_words(self, event=None):

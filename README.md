@@ -99,6 +99,7 @@ delete myVarInput
       /mod.py
    /dark-1.exe
    /dark.exe
+   /DarkInstaller.exe - используйте для установки модификаций инструкция на сайте https://psv449.pythonanywhere.com/
    /IDE.exe
    /README.md
 ```
@@ -108,12 +109,11 @@ def hi_function(*args):
     return str(args) + ' - Hi'
 
 def bye_function(*args):
-    return str(args) +' - Bye'
+    return str(args) + ' - Bye'
 ```
 - [**initialize.py**]()
 ```python
 from dark_lang_code.classes import add_mod
-
 
 add_mod('hi', hi_function)
 add_mod('bye', bye_function)
@@ -130,7 +130,7 @@ hi Привет
 
 set str text Пока
 
-bye [{text}]
+bye [{ text }]
 ```
 
 ##### Этот модификатор позволяет выводить любой текст с текстом Hi или Bye

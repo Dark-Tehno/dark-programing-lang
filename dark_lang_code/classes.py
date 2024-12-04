@@ -4,7 +4,7 @@ class Variable:
         self.value = value
 
     def __str__(self):
-        return self.name
+        return self.value
 
 
 class IntVariable(Variable):
@@ -22,6 +22,10 @@ class ListVariable(Variable):
 class DictVariable(Variable):
     def __init__(self, name, value):
         super().__init__(name, dict(value))
+
+class BoolVariable(Variable):
+    def __init__(self, name, value):
+        super().__init__(name, bool(value))
 
 class VariableStore:
     def __init__(self):
@@ -73,4 +77,10 @@ class BlockError(Exception):
     pass
 
 class CommandError(Exception):
+    pass
+
+class SyntaxError(Exception):
+    pass
+
+class ModuleError(Exception):
     pass

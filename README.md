@@ -133,4 +133,33 @@ set str text Пока
 bye [{ text }]
 ```
 
-##### Этот модификатор позволяет выводить любой текст с текстом Hi или Bye
+###### Этот модификатор позволяет выводить любой текст с текстом Hi или Bye
+
+##### Теперь можно совершать импорты к другим фаилам .dark
+Пример:
+
+file1.dark:
+```dark
+<-#-> Импорт переменной:
+from путь/до/file2.dark import_var test
+<-#-> Иморт блока:
+from путь/до/file2.dark import_block test_block
+
+<-#-> Вывод переменной и запуск блока:
+output [{test}]
+run-block test_block
+```
+
+file2.dark:
+```dark
+<-#-> Переменная:
+set str test Hello World
+<-#-> Блок:
+set block test_block => output Hi, I Dark!
+```
+
+##### Вывод:
+```bash
+Hello World
+Hi, I Dark!
+```

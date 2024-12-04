@@ -1,5 +1,7 @@
+import re
 from .mod import initialize_moduls
 from .classes import *
+import os
 
 class CommandProcessor:
     def __init__(self, variable_store, block_store):
@@ -7,26 +9,42 @@ class CommandProcessor:
         self.block_store = block_store
         self.mods = {}
 
+    def from_import_block(self, file, block_name):
+        if not os.path.isfile(file):
+            raise CommandError(f"File '{file}' not found.")
+
+        with open(file, 'r') as file:
+            lines = file.readlines()
+        for line in lines:
+            if line.startswith(f'set block {block_name} => '):
+                self.block_store.add_block(block_name, line.split('=>')[1].strip())
+                return
+
+
+    def from_import_variable(self, file, variable_name):
+        if not os.path.isfile(file):
+            raise CommandError(f"File '{file}' not found.")
+
+        with open(file, 'r') as f:
+            lines = f.readlines()
+        for line in lines:
+            if any(line.startswith(f'set {var_type} {variable_name} ') for var_type in ["int", "str", "list", "dict", "bool"]):
+                parts = line.split(' ')
+                var_type = parts[1]
+                name = parts[2]
+                value = ' '.join(parts[3:])
+                self.set_variable(var_type, name, value)
+                return
+
+
     def output(self, *args):
         output_string = ' '.join(args)
-        output_string = output_string.replace('\\n', '\n')
-        output_string = output_string.replace('\\s', ' ')
-
-        for var_name in self.variable_store.variables:
-            output_string = output_string.replace('[{'+var_name+'}]', str(self.variable_store.get_variable(var_name).value))
-            if '[{'f'{var_name}''.type}]' in output_string:
-                output_string = output_string.replace('[{'f'{var_name}''.type}]', str(type(self.variable_store.get_variable(var_name).value)))
-            else:
-                output_string = output_string.replace('[{'f'{var_name}''}]', str(self.variable_store.get_variable(var_name).value))
-
-        while '\\erase' in output_string:
-            erase_index = output_string.index('\\erase')
-            if erase_index > 0 and erase_index < len(output_string) - 7:
-                output_string = output_string[:erase_index - 1] + output_string[erase_index + 7:]
-            else:
-                output_string = output_string[:erase_index] + output_string[erase_index + 7:]
-
+        output_string = output_string.replace('\\n', '\n').replace('\\s', ' ')
+        output_string = re.sub(r'\[\{(.*?)\}\]', lambda match: str(self.variable_store.get_variable(match.group(1).strip()).value), output_string)
+        output_string = re.sub(r'\[\{\s*', '[{', output_string)
+        output_string = re.sub(r'\s*\}\]', '}]', output_string)
         print(output_string.strip())
+        return
 
     def set_variable(self, var_type: str, name: str, value: str, output: bool = False) -> str:
         try:
@@ -46,6 +64,11 @@ class CommandProcessor:
                     key, val = pair.split('=>')
                     dict_value[key.strip()] = val.strip()
                 variable = DictVariable(name, dict_value)
+            elif var_type == "bool":
+                if value == "true" or value == "True" or value == 1 or value == '1':
+                    variable = BoolVariable(name, True)
+                else:
+                    variable = BoolVariable(name, False)
             else:
                 raise VariableError(f"Unknown variable type '{var_type}'.")
 
@@ -73,6 +96,8 @@ class CommandProcessor:
                             key, val = pair.split('=>')
                             dict_value[key.strip()] = val.strip()
                         new_variable = DictVariable(name, dict_value)
+                    elif var_type == "bool":
+                        new_variable = BoolVariable(name, bool(value))
                     else:
                         raise VariableError(f"Unknown variable type '{var_type}'.")
 
@@ -148,6 +173,28 @@ class CommandProcessor:
                             self.execute(command_if)
                 else:
                     raise VariableError("Unknown variable")
+            condition_ls = condition.split(' ')
+            if len(condition_ls) == 1:
+                condition = ' '.join(condition_ls)
+                var_name = condition.strip('[{}]')
+                var_value = condition[1].strip()
+                var = self.variable_store.get_variable(var_name)
+
+                if var:
+                    if isinstance(var, BoolVariable):
+                        if var.value == True:
+                            command_if_ls = command_if.split('\|/')
+                            if list(command_if_ls):
+                                for command in command_if_ls:
+                                    self.execute(command)
+                            else:
+                                self.execute(command_if)
+                        else:
+                            return
+                    else:
+                        raise SyntaxError
+                else:
+                    raise VariableError("Unknown variable")
 
     def set_block(self, name_block, command_block):
         if name_block is not None and command_block is not None:
@@ -201,7 +248,7 @@ class CommandProcessor:
                     value = parts[4]
                     return self.update_variable(var_type, name, value, output=True)
                 elif len(parts) >= 3:
-                    var_type = parts[1] if parts[1] in ["int", "str", "list", "dict"] else None
+                    var_type = parts[1] if parts[1] in ["int", "str", "list", "dict", "bool"] else None
                     name = parts[1] if var_type is None else parts[2]
                     value = ' '.join(parts[2:]) if var_type is None else ' '.join(parts[3:])
                     return self.update_variable(var_type, name, value)
@@ -235,6 +282,18 @@ class CommandProcessor:
             elif parts[0] == "import":
                 name = parts[1]
                 return self.import_mod(name)
+
+            elif parts[0] == "from":
+                file = parts[1]
+                if parts[2] == "import_block":
+                    block = parts[3]
+                    self.from_import_block(file, block)
+
+                elif parts[2] == "import_var":
+                    variable = parts[3]
+                    self.from_import_variable(file, variable)
+                else:
+                    raise CommandError(f"Invalid import command - '{' '.join(parts)}'.")
             else:
                 mod = self.mods.get(parts[0], None)
                 if mod is not None:
@@ -244,7 +303,7 @@ class CommandProcessor:
                             var_name = arg[2:-2]
                             variable = self.variable_store.get_variable(var_name)
                             if variable:
-                                args.append(str(variable.value))
+                                args.append(variable.value)
                             else:
                                 args.append(arg)
                         else:

@@ -2,11 +2,9 @@ import glob
 import importlib.util
 import os
 
-# Обновленный шаблон для поиска файлов initialize.py в двух уровнях вложенности
 folder_path = 'mods/*/initialize.py'
 folder_path_recursive = 'mods/*/*/initialize.py'
 
-# Объединяем результаты обоих шаблонов
 python_files = glob.glob(folder_path) + glob.glob(folder_path_recursive)
 
 def initialize_moduls():

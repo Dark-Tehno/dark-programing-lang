@@ -69,6 +69,8 @@ class CommandProcessor:
                     variable = BoolVariable(name, True)
                 else:
                     variable = BoolVariable(name, False)
+            elif var_type == "float":
+                variable = FloatVariable(name, float(value))
             else:
                 raise VariableError(f"Unknown variable type '{var_type}'.")
 
@@ -98,6 +100,8 @@ class CommandProcessor:
                         new_variable = DictVariable(name, dict_value)
                     elif var_type == "bool":
                         new_variable = BoolVariable(name, bool(value))
+                    elif var_type == "float":
+                        new_variable = FloatVariable(name, float(value))
                     else:
                         raise VariableError(f"Unknown variable type '{var_type}'.")
 
@@ -233,7 +237,7 @@ class CommandProcessor:
                     return self.input_variable(var_type, name, prompt)
                 elif parts[1] == "block":
                     arrow_index = parts.index('=>')
-                    name_block = parts[2].strip().strip('[{}]')
+                    name_block = parts[2].strip()
                     command_block = ' '.join(parts[arrow_index + 1:])
                     return self.set_block(name_block, command_block)
                 elif len(parts) >= 4:
@@ -248,7 +252,7 @@ class CommandProcessor:
                     value = parts[4]
                     return self.update_variable(var_type, name, value, output=True)
                 elif len(parts) >= 3:
-                    var_type = parts[1] if parts[1] in ["int", "str", "list", "dict", "bool"] else None
+                    var_type = parts[1] if parts[1] in ["int", "str", "list", "dict", "bool", "float"] else None
                     name = parts[1] if var_type is None else parts[2]
                     value = ' '.join(parts[2:]) if var_type is None else ' '.join(parts[3:])
                     return self.update_variable(var_type, name, value)

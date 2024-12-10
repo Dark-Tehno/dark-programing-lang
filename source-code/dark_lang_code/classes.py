@@ -27,6 +27,11 @@ class BoolVariable(Variable):
     def __init__(self, name, value):
         super().__init__(name, bool(value))
 
+class FloatVariable(Variable):
+    def __init__(self, name, value):
+        super().__init__(name, float(value))
+
+
 class VariableStore:
     def __init__(self):
         self.variables = {}

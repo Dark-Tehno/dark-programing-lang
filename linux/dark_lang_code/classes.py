@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 class Variable:
     def __init__(self, name, value):
         self.name = name

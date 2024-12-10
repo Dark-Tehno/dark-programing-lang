@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import re
 from .mod import initialize_moduls
 from .classes import *

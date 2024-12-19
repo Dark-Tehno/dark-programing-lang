@@ -28,7 +28,7 @@ class CommandProcessor:
         with open(file, 'r') as f:
             lines = f.readlines()
         for line in lines:
-            if any(line.startswith(f'set {var_type} {variable_name} ') for var_type in ["int", "str", "list", "dict", "bool"]):
+            if any(line.startswith(f'set {var_type} {variable_name} ') for var_type in ["int", "str", "list", "dict", "bool", "float"]):
                 parts = line.split(' ')
                 var_type = parts[1]
                 name = parts[2]
@@ -131,74 +131,39 @@ class CommandProcessor:
         return self.set_variable(var_type, name, value)
 
     def processing_if(self, condition, command_if):
-        if condition:
-            condition_ls = condition.split('==')
-            if len(condition_ls) == 2:
-                var_name = condition_ls[0].strip().strip('[{}]')
-                var_value = condition_ls[1].strip()
-                var = self.variable_store.get_variable(var_name)
-                if var:
-                    if str(var.value) == var_value:
-                        command_if_ls = command_if.split('\|/')
-                        if list(command_if_ls):
-                            for command in command_if_ls:
-                                self.execute(command)
-                        else:
-                            self.execute(command_if)
-                else:
-                    raise VariableError("Unknown variable")
-            condition_ls = condition.split('>')
-            if len(condition_ls) == 2:
-                var_name = condition_ls[0].strip().strip('[{}]')
-                var_value = condition_ls[1].strip()
-                var = self.variable_store.get_variable(var_name)
-                if var:
-                    if int(var.value) > int(var_value):
-                        command_if_ls = command_if.split('\|/')
-                        if list(command_if_ls):
-                            for command in command_if_ls:
-                                self.execute(command)
-                        else:
-                            self.execute(command_if)
-                else:
-                    raise VariableError("Unknown variable")
-            condition_ls = condition.split('<')
-            if len(condition_ls) == 2:
-                var_name = condition_ls[0].strip().strip('[{}]')
-                var_value = condition_ls[1].strip()
-                var = self.variable_store.get_variable(var_name)
-                if var:
-                    if int(var.value) < int(var_value):
-                        command_if_ls = command_if.split('\|/')
-                        if list(command_if_ls):
-                            for command in command_if_ls:
-                                self.execute(command)
-                        else:
-                            self.execute(command_if)
-                else:
-                    raise VariableError("Unknown variable")
-            condition_ls = condition.split(' ')
-            if len(condition_ls) == 1:
-                condition = ' '.join(condition_ls)
-                var_name = condition.strip('[{}]')
-                var_value = condition[1].strip()
-                var = self.variable_store.get_variable(var_name)
+        condition = condition.strip()
+        command_if_ls = command_if.split('/|\\')
 
-                if var:
-                    if isinstance(var, BoolVariable):
-                        if var.value == True:
-                            command_if_ls = command_if.split('\|/')
-                            if list(command_if_ls):
-                                for command in command_if_ls:
-                                    self.execute(command)
-                            else:
-                                self.execute(command_if)
-                        else:
-                            return
-                    else:
-                        raise SyntaxError
-                else:
-                    raise VariableError("Unknown variable")
+        if condition.startswith('[{') and condition.endswith('}]'):
+            var_name = condition[2:-2].strip()
+            var = self.variable_store.get_variable(var_name)
+            if not var:
+                raise VariableError("Unknown variable")
+            condition_value = var.value
+        else:
+            condition_value = condition
+
+        if '==' in condition:
+            left, right = map(str.strip, condition.split('=='))
+            if left == right:
+                for command in command_if_ls:
+                    self.execute(command)
+        elif '>>' in condition:
+            left, right = map(str.strip, condition.split('>>'))
+            if float(left) > float(right):
+                for command in command_if_ls:
+                    self.execute(command)
+        elif '<<' in condition:
+            left, right = map(str.strip, condition.split('<<'))
+            if float(left) < float(right):
+                for command in command_if_ls:
+                    self.execute(command)
+        elif condition_value:
+            if isinstance(condition_value, bool):
+                for command in command_if_ls:
+                    self.execute(command)
+        else:
+            raise SyntaxError("Invalid condition syntax")
 
     def set_block(self, name_block, command_block):
         if name_block is not None and command_block is not None:
@@ -268,7 +233,7 @@ class CommandProcessor:
             elif parts[0] == "<-#->":
                 return
             elif parts[0] == "if":
-                arrow_index = parts.index('=>')
+                arrow_index = parts.index('>=')
                 condition = ' '.join(parts[1:arrow_index])
                 command_if = ' '.join(parts[arrow_index + 1:])
                 return self.processing_if(condition, command_if)
@@ -309,7 +274,13 @@ class CommandProcessor:
                             if variable:
                                 args.append(variable.value)
                             else:
-                                args.append(arg)
+                                block = self.block_store.get_block(var_name)
+                                if block:
+                                    block = block.split('\|/')
+                                    for command in block:
+                                        args.append(command)
+                                else:
+                                    args.append(arg)
                         else:
                             args.append(arg)
 

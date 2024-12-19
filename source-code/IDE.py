@@ -16,13 +16,14 @@ color = {
     '\s': '#8A2BE2',
     '\|/': '#8A2BE2',
     '==': '#FFFF00',
-    '>': '#FFFF00',
-    '<': '#FFFF00',
+    '>>': '#FFFF00',
+    '<<': '#FFFF00',
     'update': '#00FF00',
     'delete': '#00FF00',
     'if': '#00FF00',
     '<-#->': '#808080',
     '=>': '#FFFF00',
+    '>=': '#FFFF00',
     'block': '#00FF00',
     'run-block': '#00BFFF',
     'import': '#FF0000',
@@ -192,7 +193,8 @@ class DarkIDE:
         threading.Thread(target=self.run_in_terminal, args=(self.current_file,)).start()
 
     def run_in_terminal(self, file_path):
-        os.system(f"start cmd /c powershell -Command .\\{self.current_version} {file_path}")
+        os.system(f"{self.current_version} {file_path}")
+        # os.system(f"python {self.current_version} {file_path}")
 
     def highlight_words(self, event=None):
         self.text_area.tag_remove("highlight", "1.0", tk.END)

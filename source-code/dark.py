@@ -1,3 +1,4 @@
+import os
 import sys
 
 try:
@@ -18,8 +19,6 @@ try:
         file_name = args[1]
 
 
-        # file_name = 'test.dark'
-
         try:
             with open(file_name, 'r', encoding='utf-8') as f:
                 for line in f:
@@ -34,3 +33,4 @@ try:
             print(f"An error occurred: {e}")
 finally:
     input('Press Enter to exit')
+    os.system('cls||clean')

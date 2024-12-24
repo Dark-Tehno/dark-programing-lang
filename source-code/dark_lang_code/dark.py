@@ -43,11 +43,12 @@ class CommandProcessor:
         output_string = re.sub(r'\[\{(.*?)\}\]', lambda match: str(self.variable_store.get_variable(match.group(1).strip()).value), output_string)
         output_string = re.sub(r'\[\{\s*', '[{', output_string)
         output_string = re.sub(r'\s*\}\]', '}]', output_string)
-        print(output_string.strip())
-        return
+        return output_string.strip()
 
-    def set_variable(self, var_type: str, name: str, value: str, output: bool = False) -> str:
+    def set_variable(self, var_type: str, name_value: str, output: bool = False) -> str:
         try:
+            match = re.match(r'^\s*(.*?)\s*:=\s*(.*?)\s*$', name_value)
+            name, value = match.groups()
             value = value.replace('\\n', '\n').replace('\\s', ' ')
 
             if var_type == "int":
@@ -75,48 +76,9 @@ class CommandProcessor:
                 raise VariableError(f"Unknown variable type '{var_type}'.")
 
             self.variable_store.add_variable(variable)
-            return f"Variable '{name}' set." if output else ""
+            return f"Variable '{name}' set." if output else None
         except Exception as e:
             return f"Error setting variable: {e}"
-
-    def update_variable(self, var_type, name, value, output=False):
-        try:
-            variable = self.variable_store.get_variable(name)
-            if variable:
-                if var_type:
-                    if var_type == "int":
-                        new_variable = IntVariable(name, int(value))
-                    elif var_type == "str":
-                        new_variable = StrVariable(name, str(value))
-                    elif var_type == "list":
-                        value = value.split('|')
-                        new_variable = ListVariable(name, list(value))
-                    elif var_type == "dict":
-                        pairs = value.split('|')
-                        dict_value = {}
-                        for pair in pairs:
-                            key, val = pair.split('=>')
-                            dict_value[key.strip()] = val.strip()
-                        new_variable = DictVariable(name, dict_value)
-                    elif var_type == "bool":
-                        new_variable = BoolVariable(name, bool(value))
-                    elif var_type == "float":
-                        new_variable = FloatVariable(name, float(value))
-                    else:
-                        raise VariableError(f"Unknown variable type '{var_type}'.")
-
-                    self.variable_store.add_variable(new_variable)
-                    if output:
-                        return f"Variable '{name}' updated to new type '{var_type}' with value '{value}'."
-                else:
-                    variable.value = value
-                    if output:
-                        return f"Variable '{name}' updated."
-            else:
-                raise VariableError(f"Variable '{name}' not found.")
-        except Exception as e:
-            return (f"Variable update error: {e}")
-
 
     def delete_variable(self, name, output=False):
         if self.variable_store.delete_variable(name):
@@ -128,7 +90,8 @@ class CommandProcessor:
     def input_variable(self, var_type, name, prompt):
         prompt = prompt.replace('\\n', '\n').replace('\\s', ' ')
         value = input(prompt)
-        return self.set_variable(var_type, name, value)
+        name_value = name + ':=' + value
+        return self.set_variable(var_type, name_value)
 
     def processing_if(self, condition, command_if):
         condition = condition.strip()
@@ -181,6 +144,15 @@ class CommandProcessor:
         else:
             raise CommandError("Invalid module name")
 
+    def update(self, *args):
+        text = ' '.join(args)
+        variable, upd_value = text.split(':=')
+        variable = variable.strip()
+        var = self.variable_store.get_variable(variable)
+        if var:
+            var.value = upd_value.strip()
+        else:
+            raise VariableError("Unknown variable - {name}".format(name=var))
 
 
     def execute(self, command):
@@ -192,14 +164,8 @@ class CommandProcessor:
             elif parts[0] == "set":
                 if parts[1] == "output":
                     var_type = parts[2]
-                    name = parts[3]
-                    value = parts[4]
-                    return self.set_variable(var_type, name, value, output=True)
-                elif parts[1] == "input":
-                    var_type = parts[2]
-                    name = parts[3]
-                    prompt = ' '.join(parts[4:])
-                    return self.input_variable(var_type, name, prompt)
+                    name_value = ' '.join(parts[3:])
+                    return self.set_variable(var_type, name_value, output=True)
                 elif parts[1] == "block":
                     arrow_index = parts.index('=>')
                     name_block = parts[2].strip()
@@ -207,20 +173,18 @@ class CommandProcessor:
                     return self.set_block(name_block, command_block)
                 elif len(parts) >= 4:
                     var_type = parts[1]
-                    name = parts[2]
-                    value = ' '.join(parts[3:])
-                    return self.set_variable(var_type, name, value)
-            elif parts[0] == "update":
-                if parts[1] == "output":
+                    name_value = ' '.join(parts[2:])
+                    return self.set_variable(var_type, name_value)
+            elif parts[0] == "input":
+                if parts[1] == "->":
                     var_type = parts[2]
                     name = parts[3]
-                    value = parts[4]
-                    return self.update_variable(var_type, name, value, output=True)
-                elif len(parts) >= 3:
-                    var_type = parts[1] if parts[1] in ["int", "str", "list", "dict", "bool", "float"] else None
-                    name = parts[1] if var_type is None else parts[2]
-                    value = ' '.join(parts[2:]) if var_type is None else ' '.join(parts[3:])
-                    return self.update_variable(var_type, name, value)
+                    prompt = ' '.join(parts[4:])
+                    return self.input_variable(var_type, name, prompt)
+                else:
+                    raise CommandError("Invalid input command. Did you forget to add ->?")
+            elif parts[0] == 'upd':
+                return self.update(*parts[1:])
             elif parts[0] == "delete":
                 if parts[1] == "output":
                     name = parts[2]

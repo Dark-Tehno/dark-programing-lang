@@ -45,4 +45,4 @@ try:
             print(f"An error occurred: {e}")
 finally:
     enter = input('Press Enter to exit ')
-    os.system('cls||clean')
+    os.system('cls||clear')

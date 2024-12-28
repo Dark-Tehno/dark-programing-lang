@@ -58,6 +58,14 @@ class BlockStore:
     def get_block(self, name_block):
         return self.blocks.get(name_block)
 
+    def add_command_block(self, name_block, add_command_block):
+        if name_block in self.blocks:
+            content_block = self.blocks[name_block]
+            content_block += ' \|/ ' + add_command_block
+            self.blocks[name_block] = content_block
+        else:
+            self.blocks[name_block] = [add_command_block]
+
     def delete_block(self, name_block):
         if name_block in self.blocks:
             del self.blocks[name_block]

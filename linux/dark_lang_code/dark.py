@@ -1,6 +1,6 @@
 import re
 from .mod import initialize_moduls
-from .classes import *
+from .classes import VariableError, CommandError, SyntaxError, IntVariable, StrVariable, ListVariable, DictVariable, BoolVariable, FloatVariable, get_mod
 import os
 
 class CommandProcessor:
@@ -8,6 +8,11 @@ class CommandProcessor:
         self.variable_store = variable_store
         self.block_store = block_store
         self.mods = {}
+        self.is_if = False
+        self.if_condition = None
+        self.is_block = False
+        self.name_block = None
+
 
     def from_import_block(self, file, block_name):
         if not os.path.isfile(file):
@@ -93,46 +98,64 @@ class CommandProcessor:
         name_value = name + ':=' + value
         return self.set_variable(var_type, name_value)
 
-    def processing_if(self, condition, command_if):
+    def set_if(self, condition, line_number):
         condition = condition.strip()
-        command_if_ls = command_if.split('/|\\')
+        condition = re.sub(r'\[\{(.*?)\}\]', lambda match: str(self.variable_store.get_variable(match.group(1).strip()).value), condition)
+        condition = re.sub(r'\[\{\s*', '[{', condition)
+        condition = re.sub(r'\s*\}\]', '}]', condition)
+        self.if_condition = condition
 
-        if condition.startswith('[{') and condition.endswith('}]'):
-            var_name = condition[2:-2].strip()
-            var = self.variable_store.get_variable(var_name)
-            if not var:
-                raise VariableError("Unknown variable")
-            condition_value = var.value
-        else:
-            condition_value = condition
+
+        self.is_if = True
+        return ''
+
+    def processing_if(self, command_if, line_number):
+        condition = self.if_condition.strip()
 
         if '==' in condition:
             left, right = map(str.strip, condition.split('=='))
             if left == right:
-                for command in command_if_ls:
-                    self.execute(command)
+                result = self.execute(command_if, line_number)
+                if result is not None:
+                    print(result)
+
         elif '>>' in condition:
             left, right = map(str.strip, condition.split('>>'))
             if float(left) > float(right):
-                for command in command_if_ls:
-                    self.execute(command)
+                result = self.execute(command_if, line_number)
+                if result is not None:
+                    print(result)
         elif '<<' in condition:
             left, right = map(str.strip, condition.split('<<'))
             if float(left) < float(right):
-                for command in command_if_ls:
-                    self.execute(command)
-        elif condition_value:
-            if isinstance(condition_value, bool):
-                for command in command_if_ls:
-                    self.execute(command)
+                result = self.execute(command_if, line_number)
+                if result is not None:
+                    print(result)
+        elif condition:
+            if isinstance(condition, bool):
+                result = self.execute(command_if, line_number)
+                if result is not None:
+                    print(result)
         else:
-            raise SyntaxError("Invalid condition syntax")
 
-    def set_block(self, name_block, command_block):
+            raise SyntaxError(f"Invalid condition syntax in line {line_number}:\n>= {command_if}")
+
+        return ''
+
+    def set_block(self, name_block, command_block=''):
         if name_block is not None and command_block is not None:
             self.block_store.add_block(name_block, command_block)
         else:
             raise CommandError("Invalid block command.")
+
+    def processing_block(self, command_block, line_number):
+        name_block = self.name_block
+        block = self.block_store.get_block(name_block)
+        if block is not None:
+            self.block_store.add_command_block(name_block, command_block)
+        else:
+            raise CommandError("Unknown block - {name}".format(name=name_block))
+
 
     def import_mod(self, name):
         if name is not None:
@@ -154,102 +177,153 @@ class CommandProcessor:
         else:
             raise VariableError("Unknown variable - {name}".format(name=var))
 
+    def terminal(self, command):
+        return os.system(command)
 
-    def execute(self, command):
-        try:
-            parts = command.split()
-            if parts[0] == "mods":
-                if parts[1] == "init":
-                    initialize_moduls()
-            elif parts[0] == "set":
-                if parts[1] == "output":
-                    var_type = parts[2]
-                    name_value = ' '.join(parts[3:])
-                    return self.set_variable(var_type, name_value, output=True)
-                elif parts[1] == "block":
-                    arrow_index = parts.index('=>')
-                    name_block = parts[2].strip()
-                    command_block = ' '.join(parts[arrow_index + 1:])
-                    return self.set_block(name_block, command_block)
-                elif len(parts) >= 4:
-                    var_type = parts[1]
-                    name_value = ' '.join(parts[2:])
-                    return self.set_variable(var_type, name_value)
-            elif parts[0] == "input":
-                if parts[1] == "->":
-                    var_type = parts[2]
-                    name = parts[3]
-                    prompt = ' '.join(parts[4:])
-                    return self.input_variable(var_type, name, prompt)
-                else:
-                    raise CommandError("Invalid input command. Did you forget to add ->?")
-            elif parts[0] == 'upd':
-                return self.update(*parts[1:])
-            elif parts[0] == "delete":
-                if parts[1] == "output":
-                    name = parts[2]
-                    return self.delete_variable(name, output=True)
-                elif len(parts) == 2:
-                    name = parts[1]
-                    return self.delete_variable(name)
-            elif parts[0] == "output":
-                return self.output(*parts[1:])
-            elif parts[0] == "<-#->":
-                return
-            elif parts[0] == "if":
-                arrow_index = parts.index('>=')
-                condition = ' '.join(parts[1:arrow_index])
-                command_if = ' '.join(parts[arrow_index + 1:])
-                return self.processing_if(condition, command_if)
-            elif parts[0] == "run-block":
-                name_block = parts[1]
-                block = self.block_store.get_block(name_block)
-                if block:
-                    block = block.split('\|/')
-                    for command in block:
-                        result = self.execute(command)
-                        if result:
-                            return result
-                else:
-                    raise CommandError(f"Block '{name_block}' not found.")
-            elif parts[0] == "import":
-                name = parts[1]
-                return self.import_mod(name)
+    def math(self, *args, line_number):
+        if len(args) < 5 or args[1] != ':=':
+            if args[1] == '=' or args[1] == ':' or args[1] == '=:':
+                raise CommandError(f"Incorrect syntax in line {line_number}. Expected: `math [{{variable}}] := [{{expression}}]`.\nReceived: `math {' '.join(args)}`\nPerhaps you meant: `math {args[0]} := {' '.join(args[2:])}`.")
 
-            elif parts[0] == "from":
-                file = parts[1]
-                if parts[2] == "import_block":
-                    block = parts[3]
-                    self.from_import_block(file, block)
+        result_var = args[0][2:-2].strip()
 
-                elif parts[2] == "import_var":
-                    variable = parts[3]
-                    self.from_import_variable(file, variable)
-                else:
-                    raise CommandError(f"Invalid import command - '{' '.join(parts)}'.")
+        expression = ' '.join(args[2:])
+
+        def replace_variable(match):
+            var_name = match.group(1).strip()
+            variable = self.variable_store.get_variable(var_name)
+            if variable is not None:
+                return str(variable.value)
             else:
-                mod = self.mods.get(parts[0], None)
-                if mod is not None:
-                    args = []
-                    for arg in parts[1:]:
-                        if arg.startswith('[{') and arg.endswith('}]'):
-                            var_name = arg[2:-2]
-                            variable = self.variable_store.get_variable(var_name)
-                            if variable:
-                                args.append(variable.value)
-                            else:
-                                block = self.block_store.get_block(var_name)
-                                if block:
-                                    block = block.split('\|/')
-                                    for command in block:
-                                        args.append(command)
-                                else:
-                                    args.append(arg)
-                        else:
-                            args.append(arg)
+                raise VariableError(f"The variable '{var_name}' in line {line_number} was not found.")
 
-                    return mod(*args)
-                else:
-                    raise VariableError(f"Unknown line - '{' '.join(parts)}'.")
-        except VariableError as e:
-            return (f"Error: {e}")
+        expression = re.sub(r'\[\{(.*?)\}\]', replace_variable, expression)
+
+        try:
+            result = eval(expression)
+        except Exception as e:
+            raise CommandError(f"Error when calculating the expression in line {line_number}:\n{e}")
+
+        if isinstance(result, int):
+            self.set_variable("int", f"{result_var} := {result}")
+        else:
+            self.set_variable("float", f"{result_var} := {result}")
+
+        return None
+
+
+    def execute(self, command, line_number):
+        parts = command.split()
+        if parts[0] == "mods":
+            if parts[1] == "init":
+                initialize_moduls()
+        elif parts[0] == "set":
+            if parts[1] == "output":
+                var_type = parts[2]
+                name_value = ' '.join(parts[3:])
+                return self.set_variable(var_type, name_value, output=True)
+            elif len(parts) >= 4:
+                var_type = parts[1]
+                name_value = ' '.join(parts[2:])
+                return self.set_variable(var_type, name_value)
+        elif parts[0] == "block":
+            arrow_index = parts.index('=>')
+            self.is_block = True
+            name_block = self.name_block = parts[1]
+            return self.set_block(name_block)
+        elif parts[0] == "input":
+            if parts[1] == "->":
+                var_type = parts[2]
+                name = parts[3]
+                prompt = ' '.join(parts[4:])
+                return self.input_variable(var_type, name, prompt)
+            else:
+                raise CommandError("Invalid input command. Did you forget to add `->`?")
+        elif parts[0] == 'upd':
+            return self.update(*parts[1:])
+        elif parts[0] == "delete":
+            if parts[1] == "output":
+                name = parts[2]
+                return self.delete_variable(name, output=True)
+            elif len(parts) == 2:
+                name = parts[1]
+                return self.delete_variable(name)
+        elif parts[0] == "output":
+            return self.output(*parts[1:])
+        elif parts[0] == "<-#->":
+            return
+        elif parts[0] == "if":
+            arrow_index = parts.index('>=')
+            condition = ' '.join(parts[1:arrow_index])
+            self.is_if = True
+            return self.set_if(condition, line_number)
+        elif parts[0] == ">":
+            if self.is_if:
+                command_if = ' '.join(parts[1:])
+                return self.processing_if(command_if, line_number)
+            elif self.is_block:
+                command_block = ' '.join(parts[1:])
+                return self.processing_block(command_block, line_number)
+            else:
+                raise CommandError("Invalid command. Did you forget to add if or block?")
+        elif parts[0] == "endif":
+            self.is_if = False
+            return ''
+        elif parts[0] == "endblock":
+            self.is_block = False
+            return ''
+        elif parts[0] == "run":
+            name_block = parts[1]
+            block = self.block_store.get_block(name_block)
+            if block:
+                block = block[5:].split('\|/')
+                for command in block:
+                    result = self.execute(command, line_number)
+                    if result:
+                        print(result)
+            else:
+                raise CommandError(f"Block '{name_block}' not found.")
+        elif parts[0] == "import":
+            name = parts[1]
+            return self.import_mod(name)
+        elif parts[0] == "from":
+            file = parts[1]
+            if parts[2] == "import_block":
+                block = parts[3]
+                self.from_import_block(file, block)
+            elif parts[2] == "import_var":
+                variable = parts[3]
+                self.from_import_variable(file, variable)
+            else:
+                raise CommandError(f"Invalid import command - `{' '.join(parts)}` in line {line_number}.\nExpected: `from path/to/file/.dark` import_block/import_var block/var.\nReceived: `{' '.join(parts)}`")
+        elif parts[0] == "terminal":
+            command = ' '.join(parts[1:])
+            command = re.sub(r'\[\{(.*?)\}\]', lambda match: str(self.variable_store.get_variable(match.group(1).strip()).value), command)
+            command = re.sub(r'\[\{\s*', '[{', command)
+            command = re.sub(r'\s*\}\]', '}]', command)
+            return self.terminal(command)
+        elif parts[0] == "math":
+            return self.math(*parts[1:], line_number=line_number)
+        else:
+            mod = self.mods.get(parts[0], None)
+            if mod is not None:
+                args = []
+                for arg in parts[1:]:
+                    if arg.startswith('[{') and arg.endswith('}]'):
+                        var_name = arg[2:-2]
+                        variable = self.variable_store.get_variable(var_name)
+                        if variable:
+                            args.append(variable.value)
+                        else:
+                            block = self.block_store.get_block(var_name)
+                            if block:
+                                block = block.split('\|/')
+                                for command in block:
+                                    args.append(command)
+                            else:
+                                args.append(arg)
+                    else:
+                        args.append(arg)
+                return mod(*args)
+            else:
+                raise VariableError(f"Unknown line {line_number}:\n`{' '.join(parts)}`.")

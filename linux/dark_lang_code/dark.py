@@ -1,3 +1,4 @@
+import math
 import re
 from .mod import initialize_moduls
 from .classes import VariableError, CommandError, SyntaxError, IntVariable, StrVariable, ListVariable, DictVariable, BoolVariable, FloatVariable, get_mod
@@ -107,7 +108,7 @@ class CommandProcessor:
 
 
         self.is_if = True
-        return ''
+        return None
 
     def processing_if(self, command_if, line_number):
         condition = self.if_condition.strip()
@@ -131,6 +132,24 @@ class CommandProcessor:
                 result = self.execute(command_if, line_number)
                 if result is not None:
                     print(result)
+        elif '>>==' in condition:
+            left, right = map(str.strip, condition.split('>>=='))
+            if float(left) >= float(right):
+                result = self.execute(command_if, line_number)
+                if result is not None:
+                    print(result)
+        elif '<<==' in condition:
+            left, right = map(str.strip, condition.split('<<=='))
+            if float(left) <= float(right):
+                result = self.execute(command_if, line_number)
+                if result is not None:
+                    print(result)
+        elif '!=' in condition:
+            left, right = map(str.strip, condition.split('!='))
+            if left!= right:
+                result = self.execute(command_if, line_number)
+                if result is not None:
+                    print(result)
         elif condition:
             if isinstance(condition, bool):
                 result = self.execute(command_if, line_number)
@@ -140,7 +159,7 @@ class CommandProcessor:
 
             raise SyntaxError(f"Invalid condition syntax in line {line_number}:\n>= {command_if}")
 
-        return ''
+        return None
 
     def set_block(self, name_block, command_block=''):
         if name_block is not None and command_block is not None:
@@ -180,13 +199,13 @@ class CommandProcessor:
     def terminal(self, command):
         return os.system(command)
 
+
     def math(self, *args, line_number):
         if len(args) < 5 or args[1] != ':=':
             if args[1] == '=' or args[1] == ':' or args[1] == '=:':
                 raise CommandError(f"Incorrect syntax in line {line_number}. Expected: `math [{{variable}}] := [{{expression}}]`.\nReceived: `math {' '.join(args)}`\nPerhaps you meant: `math {args[0]} := {' '.join(args[2:])}`.")
 
         result_var = args[0][2:-2].strip()
-
         expression = ' '.join(args[2:])
 
         def replace_variable(match):
@@ -200,6 +219,19 @@ class CommandProcessor:
         expression = re.sub(r'\[\{(.*?)\}\]', replace_variable, expression)
 
         try:
+            allowed_functions = {
+                'sin': math.sin,
+                'cos': math.cos,
+                'tan': math.tan,
+                'sqrt': math.sqrt,
+                'log': math.log,
+                'log10': math.log10,
+                'pow': pow,
+            }
+
+            for func in allowed_functions:
+                expression = re.sub(rf'\b{func}\s*\((.*?)\)', lambda m: str(allowed_functions[func](*map(float, m.group(1).split(',')))), expression)
+
             result = eval(expression)
         except Exception as e:
             raise CommandError(f"Error when calculating the expression in line {line_number}:\n{e}")
@@ -227,7 +259,7 @@ class CommandProcessor:
                 name_value = ' '.join(parts[2:])
                 return self.set_variable(var_type, name_value)
         elif parts[0] == "block":
-            arrow_index = parts.index('=>')
+            arrow_index = parts.index(':')
             self.is_block = True
             name_block = self.name_block = parts[1]
             return self.set_block(name_block)
@@ -253,7 +285,7 @@ class CommandProcessor:
         elif parts[0] == "<-#->":
             return
         elif parts[0] == "if":
-            arrow_index = parts.index('>=')
+            arrow_index = parts.index(':')
             condition = ' '.join(parts[1:arrow_index])
             self.is_if = True
             return self.set_if(condition, line_number)
@@ -268,10 +300,10 @@ class CommandProcessor:
                 raise CommandError("Invalid command. Did you forget to add if or block?")
         elif parts[0] == "endif":
             self.is_if = False
-            return ''
+            return None
         elif parts[0] == "endblock":
             self.is_block = False
-            return ''
+            return None
         elif parts[0] == "run":
             name_block = parts[1]
             block = self.block_store.get_block(name_block)
@@ -281,6 +313,7 @@ class CommandProcessor:
                     result = self.execute(command, line_number)
                     if result:
                         print(result)
+                return None
             else:
                 raise CommandError(f"Block '{name_block}' not found.")
         elif parts[0] == "import":

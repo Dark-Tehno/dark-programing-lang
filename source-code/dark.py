@@ -13,12 +13,14 @@ try:
 
         args = sys.argv
 
-        if len(args) < 2:
-            print("No file scripts")
-            sys.exit(1)
+        # if len(args) < 2:
+        #     print("No file scripts")
+        #     sys.exit(1)
 
-        file_name = args[1]
+        # file_name = args[1]
 
+
+        file_name = 'test.dark'
         debug = False
         line_number = 0
 
@@ -52,8 +54,6 @@ try:
                                 print('Deleting a variable.')
                             elif line.strip().split(' ')[0] == 'input':
                                 pass
-                            else:
-                                print('There is no output')
                         if result:
                             print(result)
         except FileNotFoundError:
@@ -61,7 +61,7 @@ try:
         except Exception as e:
             print(f'\033[38;2;255;0;0mError: {e}\033[0m')
 finally:
-    enter = input('Press Enter to exit ')
+    enter = input('\033[38;2;255;255;0mPress Enter to exit \033[0m')
     if enter == "not purify":
         pass
     else:

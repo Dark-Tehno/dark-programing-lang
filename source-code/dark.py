@@ -13,14 +13,13 @@ try:
 
         args = sys.argv
 
-        # if len(args) < 2:
-        #     print("No file scripts")
-        #     sys.exit(1)
+        if len(args) < 2:
+            print("No file scripts")
+            sys.exit(1)
 
-        # file_name = args[1]
+        file_name = args[1]
 
 
-        file_name = 'test.dark'
         debug = False
         line_number = 0
 

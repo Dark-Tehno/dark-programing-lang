@@ -74,15 +74,17 @@ from путь/до/file2.dark import_block test_block
 
 <-#-> Вывод переменной и запуск блока:
 output [{test}]
-run-block test_block
+run test_block
 ```
 
 file2.dark:
 ```dark
 <-#-> Переменная:
-set str test Hello World
+set str test := Hello World
 <-#-> Блок:
-set block test_block => output Hi, I Dark!
+block test_block :
+> output Hi, I Dark!
+endblock
 ```
 
 ##### Вывод:

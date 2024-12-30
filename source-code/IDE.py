@@ -7,26 +7,32 @@ import re
 color = {
     'output': '#00FF00',
     'input': '#00FF00',
+    'math': '#00FF00',
+    'obj': '#00FF00',
+    'terminal': '#00FF00',
     'set': '#00BFFF',
     'int': '#00BFFF',
     'str': '#00BFFF',
     'bool': '#00BFFF',
     'list': '#00BFFF',
+    'float': '#00BFFF',
     r'\n': '#8A2BE2',
     '\s': '#8A2BE2',
-    '\|/': '#8A2BE2',
     '==': '#FFFF00',
     '>>': '#FFFF00',
     '<<': '#FFFF00',
+    '!=': '#FFFF00',
+    '>>==': '#FFFF00',
+    '<<==': '#FFFF00',
     'update': '#00FF00',
     'delete': '#00FF00',
     'if': '#00FF00',
     '<-#->': '#808080',
     '=>': '#FFFF00',
-    '->': '#FFFF00',
     '>=': '#FFFF00',
+    '->': '#FFFF00',
     'block': '#00FF00',
-    'run-block': '#00BFFF',
+    'run': '#00BFFF',
     'import': '#FF0000',
     'import_var': '#FF0000',
     'import_block': '#FF0000',
@@ -35,6 +41,9 @@ color = {
     'init': '#FF00FF',
     '[{': '#FF00FF',
     '}]': '#FF00FF',
+    '>': '#FF00FF',
+    'endblock': '#00FF00',
+    'endif': '#00FF00',
 }
 
 class DarkIDE:
@@ -73,7 +82,7 @@ class DarkIDE:
 
         version_button = tk.Button(
             button_frame,
-            text="Весрия",
+            text="Исполняемый фаил",
             command=self.version_select,
             font=("Consolas", 12),
             bg='#3E3E3E',
@@ -124,6 +133,55 @@ class DarkIDE:
         self.text_area.bind("<KeyRelease>", self.on_text_change)
         self.text_area.bind("<Configure>", self.update_line_numbers)
         self.text_area.bind("<MouseWheel>", self.on_mouse_wheel)
+        self.text_area.bind('<Control-s>', self.save_file)
+        self.text_area.bind("<KeyPress>", self.on_key_press)
+
+    def on_key_press(self, event):
+        if event.keysym == 'Tab':
+            self.show_suggestions(event)
+            return "break"
+
+    def show_suggestions(self, event):
+        current_word = self.get_current_word()
+
+        suggestions = [word for word in color.keys() if word.startswith(current_word)]
+
+        if not suggestions:
+            return
+
+        self.suggestion_window = tk.Toplevel(self.root)
+        self.suggestion_window.title("Подсказки")
+        self.suggestion_window.geometry("200x150")
+
+        self.suggestion_listbox = tk.Listbox(self.suggestion_window)
+        self.suggestion_listbox.pack(fill=tk.BOTH, expand=True)
+
+        for suggestion in suggestions:
+            self.suggestion_listbox.insert(tk.END, suggestion)
+
+        self.suggestion_listbox.bind("<Double-Button-1>", self.insert_suggestion)
+        self.suggestion_listbox.bind("<Return>", self.insert_suggestion)
+
+        self.suggestion_listbox.focus_set()
+
+    def get_current_word(self):
+        cursor_index = self.text_area.index(tk.INSERT)
+        line, column = map(int, cursor_index.split('.'))
+        line_text = self.text_area.get(f"{line}.0", f"{line}.end")
+
+        words = line_text.split()
+        for word in reversed(words):
+            if line_text.find(word) <= column:
+                return word
+        return ""
+
+    def insert_suggestion(self, event):
+        selected = self.suggestion_listbox.curselection()
+        if selected:
+            suggestion = self.suggestion_listbox.get(selected[0])
+            cursor_index = self.text_area.index(tk.INSERT)
+            self.text_area.insert(cursor_index, suggestion + " ")
+            self.suggestion_window.destroy()
 
     def update_line_numbers(self, event=None):
         self.line_numbers.config(state='normal')
@@ -169,7 +227,7 @@ class DarkIDE:
         if file_path:
             self.current_version = os.path.basename(file_path)
 
-    def save_file(self):
+    def save_file(self, event=None):
         if self.current_file is None:
             file_path = filedialog.asksaveasfilename(
                 defaultextension=".dark",

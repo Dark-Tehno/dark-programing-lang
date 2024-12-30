@@ -24,7 +24,7 @@ class CommandProcessor:
         for line in lines:
             if line.startswith(f'set block {block_name} => '):
                 self.block_store.add_block(block_name, line.split('=>')[1].strip())
-                return
+                return ''
 
 
     def from_import_variable(self, file, variable_name):
@@ -40,7 +40,7 @@ class CommandProcessor:
                 name = parts[2]
                 value = ' '.join(parts[3:])
                 self.set_variable(var_type, name, value)
-                return
+                return ''
 
 
     def output(self, *args):
@@ -84,7 +84,7 @@ class CommandProcessor:
             self.variable_store.add_variable(variable)
             return f"Variable '{name}' set." if output else None
         except Exception as e:
-            return f"Error setting variable: {e}"
+            raise VariableError(f"Error setting variable: {e}")
 
     def delete_variable(self, name, output=False):
         if self.variable_store.delete_variable(name):
@@ -106,7 +106,6 @@ class CommandProcessor:
         condition = re.sub(r'\s*\}\]', '}]', condition)
         self.if_condition = condition
 
-
         self.is_if = True
         return None
 
@@ -119,7 +118,6 @@ class CommandProcessor:
                 result = self.execute(command_if, line_number)
                 if result is not None:
                     print(result)
-
         elif '>>' in condition:
             left, right = map(str.strip, condition.split('>>'))
             if float(left) > float(right):
@@ -243,6 +241,40 @@ class CommandProcessor:
 
         return None
 
+    def obj(self, *args, line_number):
+        if len(args) < 4 or args[1] != ':=':
+            if args[1] == '=' or args[1] == ':' or args[1] == '=:':
+                raise CommandError(f"Incorrect syntax in line {line_number}. Expected: `obj [{{variable}}] := varible_dict_or_list key_or_id`.\nReceived: `obj {' '.join(args)}`\nPerhaps you meant: `obj {args[0]} := {' '.join(args[2:])}`.")
+
+        result_var = args[0][2:-2].strip()
+        variable_name = args[2].strip()
+        obj = args[3].strip()
+        obj = re.sub(r'\[\{(.*?)\}\]', lambda match: str(self.variable_store.get_variable(match.group(1).strip()).value), obj)
+        obj = re.sub(r'\[\{\s*', '[{', obj)
+        obj = re.sub(r'\s*\}\]', '}]', obj)
+
+        variable = self.variable_store.get_variable(variable_name)
+        if variable is None:
+            raise VariableError(f"Variable '{variable_name}' not found.")
+
+        if isinstance(variable, ListVariable):
+            index = int(obj)
+            if index < 0 or index >= len(variable.value):
+                raise IndexError(f"Index {index} out of range for list variable '{variable_name}'.")
+            value = variable.value[index]
+            self.set_variable("str", f"{result_var} := {value}")
+        elif isinstance(variable, DictVariable):
+            key = obj.strip()
+            if key not in variable.value:
+                raise KeyError(f"Key '{key}' not found in dict variable '{variable_name}'.")
+            value = variable.value[key]
+            self.set_variable("str", f"{result_var} := {value}")
+        else:
+            raise VariableError(f"Variable '{variable_name}' is not a list or dict.")
+
+        return None
+
+
 
     def execute(self, command, line_number):
         parts = command.split()
@@ -259,7 +291,10 @@ class CommandProcessor:
                 name_value = ' '.join(parts[2:])
                 return self.set_variable(var_type, name_value)
         elif parts[0] == "block":
-            arrow_index = parts.index(':')
+            try:
+                arrow_index = parts.index(':')
+            except ValueError:
+                raise CommandError(f"Invalid block command in line {line_number}. Did you forget to add `:`?")
             self.is_block = True
             name_block = self.name_block = parts[1]
             return self.set_block(name_block)
@@ -285,7 +320,10 @@ class CommandProcessor:
         elif parts[0] == "<-#->":
             return
         elif parts[0] == "if":
-            arrow_index = parts.index(':')
+            try:
+                arrow_index = parts.index(':')
+            except ValueError:
+                raise CommandError(f"Invalid if command in line {line_number}. Did you forget to add `:`?")
             condition = ' '.join(parts[1:arrow_index])
             self.is_if = True
             return self.set_if(condition, line_number)
@@ -337,6 +375,8 @@ class CommandProcessor:
             return self.terminal(command)
         elif parts[0] == "math":
             return self.math(*parts[1:], line_number=line_number)
+        elif parts[0] == "obj":
+            return self.obj(*parts[1:], line_number=line_number)
         else:
             mod = self.mods.get(parts[0], None)
             if mod is not None:
